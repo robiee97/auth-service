@@ -38,13 +38,13 @@ public class AuthService {
                 .build();
 
         userRepository.save(user);
-        emailService.sendVerificationEmail(user);
+//        emailService.sendVerificationEmail(user);
 
         var jwtToken = jwtService.generateToken(user);
         var refreshToken = jwtService.generateRefreshToken(user);
 
         return AuthResponse.builder()
-                .accessToken(jwtToken)
+                .accessToken(user.getVerificationToken())
                 .refreshToken(refreshToken)
                 .build();
     }

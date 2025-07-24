@@ -1,0 +1,57 @@
+name: Build and Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AZURE_CONTAINER_REGISTRY: robiee97.azurecr.io
+  IMAGE_NAME: auth-service
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build JAR using Maven
+        run: mvn clean package -DskipTests
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Log in to ACR
+        run: az acr login --name robiee97
+
+      - name: Build and Push Docker image
+        run: |
+          docker build -t $AZURE_CONTAINER_REGISTRY/$IMAGE_NAME:${{ github.sha }} .
+          docker push $AZURE_CONTAINER_REGISTRY/$IMAGE_NAME:${{ github.sha }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+
+      - name: Set Kubernetes context
+        uses: azure/aks-set-context@v3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          cluster-name: robiee97-crud
+          resource-group: robinResourceGroup
+
+      - name: Deploy using Helm
+        run: |
+          helm upgrade --install my-release ./auth-service \
+            --set image.repository=$AZURE_CONTAINER_REGISTRY/$IMAGE_NAME \
+            --set image.tag=${{ github.sha }} \
+            --set service.type=LoadBalancer
